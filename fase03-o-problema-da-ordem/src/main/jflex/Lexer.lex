@@ -1,79 +1,101 @@
 package br.maua.cic303;
 
-import java_cup.runtime.*;
+import java_cup.runtime.Symbol; // Importação necessária para o CUP
 
-parser code {:
-    // Método chamado pelo CUP quando encontra um erro sintático
-    @Override
-    public void syntax_error(Symbol cur_token) {
-        throw new RuntimeException("Erro Sintático na linha " + cur_token.left + ", coluna " + cur_token.right);
+%%
+
+%class Lexer
+%public
+%unicode
+%cup       // <-- CRÍTICO: Ativa a integração nativa com o CUP e muda o tipo de retorno para Symbol
+%line
+%column
+
+%{
+    // Funções auxiliares para gerar objetos Symbol para o CUP
+    private Symbol symbol(int type) {
+        return new Symbol(type, yyline, yycolumn);
     }
-:}
+    
+    private Symbol symbol(int type, Object value) {
+        return new Symbol(type, yyline, yycolumn, value);
+    }
+%}
 
 /* ========================================================================= */
-/* DECLARAÇÃO DOS TOKENS (TERMINAIS)                                         */
+/* MACROS                                                                    */
 /* ========================================================================= */
+LineTerminator = \r|\n|\r\n
+WhiteSpace     = {LineTerminator} | [ \t\f]
 
-terminal IF, THEN, ELSE, WHILE;
-terminal ASSIGN, LPAREN, RPAREN, LBRACE, RBRACE, SEMI;
-terminal String ID, NUMBER;
-terminal String ADD_OP, MUL_OP, REL_OP;
+Number = [0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?
 
-/* ========================================================================= */
-/* DECLARAÇÃO DOS NÃO-TERMINAIS (VARIÁVEIS DA GRAMÁTICA)                     */
-/* ========================================================================= */
+Letter = [a-zA-Z]
+Digit  = [0-9]
+Identifier = {Letter}({Letter}|{Digit}|_){0,31}
 
-non terminal program, stmt_list, stmt;
-non terminal assign_stmt, if_stmt, while_stmt, block_stmt, null_stmt;
-non terminal expr;
+%%
 
-/* ========================================================================= */
-/* PRECEDÊNCIA E ASSOCIATIVIDADE                                             */
-/* ========================================================================= */
+<YYINITIAL> {
 
-precedence left REL_OP;
-precedence left ADD_OP;
-precedence left MUL_OP;
+    /* Ignorar espaços */
+    {WhiteSpace}    { /* Não faz nada */ }
 
-/* ========================================================================= */
-/* REGRAS DA GRAMÁTICA                                                       */
-/* ========================================================================= */
+    /* ========================= */
+    /* PALAVRAS RESERVADAS       */
+    /* ========================= */
+    "if"            { return symbol(sym.IF); }
+    "then"          { return symbol(sym.THEN); }
+    "else"          { return symbol(sym.ELSE); }
+    "while"         { return symbol(sym.WHILE); }
 
-start with program;
+    /* ========================= */
+    /* PONTUAÇÃO                 */
+    /* ========================= */
+    "("             { return symbol(sym.LPAREN); }
+    ")"             { return symbol(sym.RPAREN); }
+    "{"             { return symbol(sym.LBRACE); }
+    "}"             { return symbol(sym.RBRACE); }
+    ";"             { return symbol(sym.SEMI); }
 
-program ::= stmt_list ;
+    /* ========================= */
+    /* OPERADORES RELACIONAIS    */
+    /* ========================= */
+    "=="            { return symbol(sym.REL_OP, yytext()); }
+    "!="            { return symbol(sym.REL_OP, yytext()); }
+    "<="            { return symbol(sym.REL_OP, yytext()); }
+    ">="            { return symbol(sym.REL_OP, yytext()); }
+    "<"             { return symbol(sym.REL_OP, yytext()); }
+    ">"             { return symbol(sym.REL_OP, yytext()); }
 
-/* Lista de comandos que aceita recursão à esquerda e pode ser vazia.
-   Isso permite tratar blocos vazios, sequências de nulos ou códigos sem comandos. */
-stmt_list ::= stmt_list stmt
-            | /* Vazio */
-            ;
+    /* ========================= */
+    /* ATRIBUIÇÃO                */
+    /* ========================= */
+    "="             { return symbol(sym.ASSIGN); }
 
-stmt ::= assign_stmt
-       | if_stmt
-       | while_stmt
-       | block_stmt
-       | null_stmt
-       ;
+    /* ========================= */
+    /* OPERADORES MATEMÁTICOS    */
+    /* ========================= */
+    "+" | "-"       { return symbol(sym.ADD_OP, yytext()); }
+    "*" | "/" | "%" { return symbol(sym.MUL_OP, yytext()); }
 
-assign_stmt ::= ID ASSIGN expr SEMI ;
+    /* ========================= */
+    /* IDENTIFICADORES E NÚMEROS */
+    /* ========================= */
+    {Identifier}    { return symbol(sym.ID, yytext()); }
+    {Number}        { return symbol(sym.NUMBER, yytext()); }
 
-/* Estruturas de controle IF/ELSE tratadas explicitamente sem colchetes opcionais */
-if_stmt ::= IF LPAREN expr RPAREN THEN block_stmt
-          | IF LPAREN expr RPAREN THEN block_stmt ELSE block_stmt
-          ;
+    /* ERRO: identificador > 32 chars */
+    /* Consome os 32 caracteres excedentes mais o restante do nome inválido */
+    {Letter}({Letter}|{Digit}|){32}({Letter}|{Digit}|)* {
+        return symbol(sym.error, "Erro Léxico: Identificador ultrapassou 32 caracteres -> " + yytext());
+    }
 
-while_stmt ::= WHILE LPAREN expr RPAREN block_stmt ;
+    /* ERRO genérico */
+    . {
+        return symbol(sym.error, "Erro Léxico: Caractere Ilegal -> " + yytext());
+    }
+}
 
-block_stmt ::= LBRACE stmt_list RBRACE ;
-
-null_stmt ::= SEMI ;
-
-/* Expressões matemáticas com árvore resolvida por regras de precedência */
-expr ::= expr ADD_OP expr
-       | expr MUL_OP expr
-       | expr REL_OP expr
-       | LPAREN expr RPAREN
-       | NUMBER
-       | ID
-       ;
+/* EOF */
+<<EOF>> { return symbol(sym.EOF); }
