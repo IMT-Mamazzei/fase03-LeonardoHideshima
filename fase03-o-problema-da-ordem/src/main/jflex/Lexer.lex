@@ -87,8 +87,8 @@ Identifier = {Letter}({Letter}|{Digit}|_){0,31}
 
     /* ERRO: identificador > 32 chars */
     /* Consome os 32 caracteres excedentes mais o restante do nome inválido */
-    {Letter}({Letter}|{Digit}|){32}({Letter}|{Digit}|)* {
-        return symbol(sym.error, "Erro Léxico: Identificador ultrapassou 32 caracteres -> " + yytext());
+    [a-zA-Z][a-zA-Z0-9_]{32,} {
+    return symbol(sym.error, "Erro Léxico: Identificador ultrapassou 32 caracteres -> " + yytext());
     }
 
     /* ERRO genérico */
