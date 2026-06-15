@@ -26,7 +26,7 @@ WhiteSpace     = {LineTerminator} | [ \t\f]
 Number         = [0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?
 Letter         = [a-zA-Z]
 Digit          = [0-9]
-Identifier     = {Letter}({Letter}|{Digit}|_){0,31}
+Identifier     = [a-zA-Z][a-zA-Z0-9_]*
 
 %%
 
@@ -57,12 +57,14 @@ Identifier     = {Letter}({Letter}|{Digit}|_){0,31}
     "+" | "-"       { return symbol(sym.ADD_OP, yytext()); }
     "*" | "/" | "%" { return symbol(sym.MUL_OP, yytext()); }
 
-    {Identifier}    { return symbol(sym.ID, yytext()); }
-    {Number}        { return symbol(sym.NUMBER, yytext()); }
-
-    [a-zA-Z][a-zA-Z0-9_]{32,} {
-        return symbol(sym.error, "Erro Léxico: Identificador ultrapassou 32 caracteres -> " + yytext());
+    {Identifier}    { 
+        if (yytext().length() > 32) {
+            return symbol(sym.error, "Erro Léxico: Identificador ultrapassou 32 caracteres -> " + yytext());
+        }
+        return symbol(sym.ID, yytext()); 
     }
+
+    {Number}        { return symbol(sym.NUMBER, yytext()); }
 
     . {
         return symbol(sym.error, "Erro Léxico: Caractere Ilegal -> " + yytext());
